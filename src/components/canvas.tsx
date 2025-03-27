@@ -1,8 +1,7 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 interface CanvasProps {
   selectedComponent: string | null;
@@ -17,6 +16,61 @@ export function Canvas({
   zoom,
   setZoom,
 }: CanvasProps) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -10 : 10;
+        setZoom(Math.min(200, Math.max(50, zoom + delta)));
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 1) {
+        // Middle mouse button
+        e.preventDefault();
+        setIsDragging(true);
+        setDragStart({
+          x: e.clientX - position.x,
+          y: e.clientY - position.y,
+        });
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        e.preventDefault();
+        setPosition({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        });
+      }
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 1) {
+        setIsDragging(false);
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [zoom, setZoom, isDragging, position, dragStart]);
+
   // Get canvas width based on selected resolution
   const getCanvasWidth = () => {
     switch (resolution) {
@@ -34,12 +88,16 @@ export function Canvas({
   return (
     <main className="relative flex flex-1 items-center justify-center overflow-auto bg-muted/30 p-6">
       <div
-        className="bg-background border shadow-sm transition-all duration-200"
+        ref={canvasRef}
+        className="bg-background border shadow-sm"
         style={{
           width: getCanvasWidth(),
           height: "100%",
-          transform: `scale(${zoom / 100})`,
+          transform: `scale(${zoom / 100}) translate(${position.x}px, ${
+            position.y
+          }px)`,
           transformOrigin: "center center",
+          cursor: isDragging ? "grabbing" : "grab",
         }}
       >
         {selectedComponent ? (
@@ -53,36 +111,10 @@ export function Canvas({
         )}
       </div>
 
-      {/* Zoom control in bottom left */}
-      <div className="absolute bottom-6 left-6 flex items-center gap-2 rounded-md bg-background p-2 shadow-md">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setZoom(Math.max(50, zoom - 10))}
-          disabled={zoom <= 50}
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-
-        <Slider
-          value={[zoom]}
-          min={50}
-          max={200}
-          step={10}
-          className="w-24"
-          onValueChange={(value) => setZoom(value[0])}
-        />
-
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setZoom(Math.min(200, zoom + 10))}
-          disabled={zoom >= 200}
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-
-        <span className="ml-1 text-xs font-medium">{zoom}%</span>
+      {/* Zoom indicator */}
+      <div className="absolute bottom-6 left-6 flex items-center gap-1 rounded-md bg-background px-2 py-1 shadow-md">
+        <ZoomIn className="h-4 w-4" />
+        <span className="text-xs font-medium">{zoom}%</span>
       </div>
     </main>
   );
